@@ -1,17 +1,22 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="row g-4">
-  <div class="col-lg-8">
-    <div class="card shadow">
-      <div class="card-body p-4">
-        <span class="badge text-bg-success mb-2">LIVE NOW</span>
-        <h1 class="h3">{{ challenge.title }}</h1>
-        <p class="text-secondary">{{ challenge.description }}</p>
-        <p class="fs-4">Ends in <span id="countdown" data-seconds="{{ challenge.seconds_left }}">--:--</span></p>
-        <a href="{{ url_for('join') }}" class="btn btn-primary btn-lg">Join challenge</a>
-      </div>
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                {% if challenge %}
+                    <span class="badge text-bg-success mb-2">LIVE NOW</span>
+                    <h1 class="h3">{{ challenge.title }}</h1>
+                    <p class="text-secondary">{{ challenge.description }}</p>
+                    <p class="fs-4">Ends in <span id="countdown" data-seconds="{{ seconds_left }}">--:--</span></p>
+                    <a href="{{ url_for('join') }}" class="btn btn-primary btn-lg">Join challenge</a>
+                {% else %}
+                    <h1 class="h3">No live challenge right now</h1>
+                    <p class="text-secondary">Check back soon!</p>
+                {% endif %}
+            </div>
+        </div>
     </div>
-  </div>
   <div class="col-lg-4">
     <div class="card">
       <div class="card-header">🏆 Top players</div>
@@ -20,6 +25,8 @@
         <li class="list-group-item d-flex justify-content-between">
           <span>{{ loop.index }}. {{ p.name }}</span><strong>{{ p.score }}</strong>
         </li>
+        {% else %}
+        <li class="list-group-item text-secondary">No scores yet</li>
         {% endfor %}
       </ul>
     </div>
@@ -30,12 +37,14 @@
 {% block scripts %}
 <script>
   const el = document.getElementById("countdown");
-  let s = parseInt(el.dataset.seconds);
-  function tick() {
-    const m = String(Math.floor(s / 60)).padStart(2, "0");
-    const r = String(s % 60).padStart(2, "0");
-    el.textContent = `${m}:${r}`;
-    if (s > 0) s--;
+  if (el) {
+    let s = parseInt(el.dataset.seconds);
+    function tick() {
+        const m = String(Math.floor(s / 60)).padStart(2, "0");
+        const r = String(s % 60).padStart(2, "0");
+        el.textContent = `${m}:${r}`;
+        if (s > 0) s--;
+    }
   }
   tick(); setInterval(tick, 1000);
 </script>
