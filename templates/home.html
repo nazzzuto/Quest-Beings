@@ -8,7 +8,7 @@
         <h1 class="h3">{{ challenge.title }}</h1>
         <p class="text-secondary">{{ challenge.description }}</p>
         <p class="fs-4">Ends in <span id="countdown" data-seconds="{{ challenge.seconds_left }}">--:--</span></p>
-        <a href="#" class="btn btn-primary btn-lg">Join challenge</a>
+        <a href="{{ url_for('join') }}" class="btn btn-primary btn-lg">Join challenge</a>
       </div>
     </div>
   </div>
