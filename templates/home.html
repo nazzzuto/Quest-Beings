@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card shadow">
+      <div class="card-body p-4">
+        <span class="badge text-bg-success mb-2">LIVE NOW</span>
+        <h1 class="h3">{{ challenge.title }}</h1>
+        <p class="text-secondary">{{ challenge.description }}</p>
+        <p class="fs-4">Ends in <span id="countdown" data-seconds="{{ challenge.seconds_left }}">--:--</span></p>
+        <a href="#" class="btn btn-primary btn-lg">Join challenge</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">🏆 Top players</div>
+      <ul class="list-group list-group-flush">
+        {% for p in players %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{{ loop.index }}. {{ p.name }}</span><strong>{{ p.score }}</strong>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const el = document.getElementById("countdown");
+  let s = parseInt(el.dataset.seconds);
+  function tick() {
+    const m = String(Math.floor(s / 60)).padStart(2, "0");
+    const r = String(s % 60).padStart(2, "0");
+    el.textContent = `${m}:${r}`;
+    if (s > 0) s--;
+  }
+  tick(); setInterval(tick, 1000);
+</script>
+{% endblock %}
