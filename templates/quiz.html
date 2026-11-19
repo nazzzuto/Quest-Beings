@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Quiz · Quest-Beings{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="d-flex justify-content-between mb-2">
+      <span>Question {{ number }} of {{ total }}</span>
+      <span>Score: <strong>{{ score }}</strong></span>
+    </div>
+    <div class="progress mb-3" style="height: 8px;">
+      <div class="progress-bar" style="width: {{ (number - 1) / total * 100 }}%"></div>
+    </div>
+
+    <div class="card p-4">
+      <p class="fs-4 text-center mb-1">⏱ <span id="timer">{{ seconds_left }}</span>s</p>
+      <h2 class="h4 mb-4">{{ q.text }}</h2>
+      <form method="post" action="{{ url_for('answer') }}" id="quizForm">
+        {% for key, text in q.options().items() %}
+        <button name="choice" value="{{ key }}"
+                class="btn btn-outline-light w-100 text-start mb-2 py-3">
+          {{ key|upper }}. {{ text }}
+        </button>
+        {% endfor %}
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let s = {{ seconds_left }};
+  const timer = document.getElementById("timer");
+  const t = setInterval(() => {
+    s--;
+    timer.textContent = Math.max(s, 0);
+    if (s <= 0) {
+      clearInterval(t);
+      document.getElementById("quizForm").submit();   // time's up: counts as wrong
+    }
+  }, 1000);
+</script>
+{% endblock %}
