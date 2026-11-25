@@ -2,12 +2,17 @@ import os
 import time
 from datetime import datetime, timedelta, timezone
 
+from authlib.integrations.flask_client import OAuth
+
 import redis
 from flask import Flask, render_template, redirect, url_for, request, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (LoginManager, UserMixin, login_user,
                          logout_user, login_required, current_user)
 from werkzeug.security import generate_password_hash, check_password_hash
+
+from dotenv import load_dotenv
+load_dotenv()
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-me")
@@ -16,6 +21,15 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///pulsequest.db"
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
+
+oauth = OAuth(app)
+google = oauth.register(
+    name="google",
+    client_id=os.environ.get("GOOGLE_CLIENT_ID"),
+    client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={"scope": "openid email profile"},
+)
 
 QUESTION_TIME = 15  # seconds allowed per question
 
@@ -29,7 +43,9 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(60), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False)
+    password_hash = db.Column(db.String(256))        # empty for Google-only users
+    google_id = db.Column(db.String(60), unique=True)
+    avatar_url = db.Column(db.String(300))
 
 
 class Challenge(db.Model):
@@ -193,7 +209,7 @@ def login():
         password = request.form["password"]
         user = User.query.filter_by(email=email).first()
 
-        if user and check_password_hash(user.password_hash, password):
+        if user and user.password_hash and check_password_hash(user.password_hash, password):
             login_user(user)
             return redirect(url_for("home"))
         flash("Wrong email or password.", "danger")
@@ -206,6 +222,41 @@ def logout():
     logout_user()
     return redirect(url_for("home"))
 
+@app.route("/auth/google")
+def google_login():
+    redirect_uri = url_for("google_callback", _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+
+@app.route("/auth/google/callback")
+def google_callback():
+    try:
+        token = google.authorize_access_token()
+    except Exception:
+        flash("Google login failed. Please try again.", "danger")
+        return redirect(url_for("login"))
+
+    info = token.get("userinfo")
+    if not info or not info.get("email") or not info.get("email_verified"):
+        flash("Google did not give us a verified email.", "danger")
+        return redirect(url_for("login"))
+
+    email = info["email"].lower()
+    user = User.query.filter_by(google_id=info["sub"]).first()
+
+    if not user:
+        if User.query.filter_by(email=email).first():
+            flash("That email already has a password account. Please log in with your password.", "warning")
+            return redirect(url_for("login"))
+        user = User(name=info.get("name") or email.split("@")[0],
+                    email=email, google_id=info["sub"])
+        db.session.add(user)
+
+    user.avatar_url = info.get("picture")
+    db.session.commit()
+    login_user(user)
+    flash(f"Welcome, {user.name}!", "success")
+    return redirect(url_for("home"))
 
 # ---------- Quiz ----------
 # ---------- Quiz ----------
