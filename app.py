@@ -5,7 +5,8 @@ from datetime import datetime, timedelta, timezone
 from authlib.integrations.flask_client import OAuth
 
 import redis
-from flask import Flask, render_template, redirect, url_for, request, flash, session, jsonify
+from functools import wraps
+from flask import Flask, render_template, redirect, url_for, request, flash, session, jsonify, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (LoginManager, UserMixin, login_user,
                          logout_user, login_required, current_user)
@@ -17,6 +18,7 @@ load_dotenv()
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-me")
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///pulsequest.db"
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -95,6 +97,30 @@ with app.app_context():
 
 def get_active_challenge():
     return Challenge.query.filter_by(is_active=True).order_by(Challenge.id.desc()).first()
+
+ADMIN_EMAILS = {e.strip().lower()
+                for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()}
+
+
+def is_admin(user):
+    # Google login only: Google has verified the email address
+    return user.is_authenticated and bool(user.google_id) and user.email in ADMIN_EMAILS
+
+
+def admin_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return login_manager.unauthorized()
+        if not is_admin(current_user):
+            abort(403)
+        return view(*args, **kwargs)
+    return wrapped
+
+
+@app.context_processor
+def inject_admin():
+    return {"is_admin": is_admin(current_user)}
 
 r = redis.Redis.from_url(
     os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
@@ -381,6 +407,91 @@ def results():
         streak=int(r.get(f"streak:{current_user.id}") or 0),
     )
 
+# ---------- Admin ----------
+@app.route("/admin")
+@admin_required
+def admin_home():
+    challenges = Challenge.query.order_by(Challenge.id.desc()).all()
+    counts = {c.id: Attempt.query.filter_by(challenge_id=c.id).count()
+              for c in challenges}
+    return render_template("admin.html", challenges=challenges,
+                           counts=counts, now=utcnow())
+
+
+@app.route("/admin/new", methods=["GET", "POST"])
+@admin_required
+def admin_new():
+    blocks = []
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        description = request.form.get("description", "").strip()
+        try:
+            hours = int(request.form.get("hours", "24"))
+        except ValueError:
+            hours = 0
+
+        # Each question arrives as parallel lists: q_text[i], q_a[i] ... q_correct[i]
+        rows = zip(request.form.getlist("q_text"), request.form.getlist("q_a"),
+                   request.form.getlist("q_b"), request.form.getlist("q_c"),
+                   request.form.getlist("q_d"), request.form.getlist("q_correct"))
+        for text, a, b, c, d, ans in rows:
+            block = {"text": text.strip(), "a": a.strip(), "b": b.strip(),
+                     "c": c.strip(), "d": d.strip(), "correct": ans}
+            if any([block["text"], block["a"], block["b"], block["c"], block["d"]]):
+                blocks.append(block)   # skip completely blank blocks
+
+        error = None
+        if not title or len(title) > 100:
+            error = "Title is required (up to 100 characters)."
+        elif not description or len(description) > 300:
+            error = "Description is required (up to 300 characters)."
+        elif not 1 <= hours <= 168:
+            error = "Duration must be between 1 and 168 hours."
+        elif not blocks:
+            error = "Add at least one question."
+        else:
+            for blk in blocks:
+                texts = [blk["text"], blk["a"], blk["b"], blk["c"], blk["d"]]
+                if not all(texts):
+                    error = "Fill in the question and all four options for each question."
+                elif len(blk["text"]) > 300 or any(len(o) > 150 for o in texts[1:]):
+                    error = "A question or option is too long."
+                elif blk["correct"] not in ("a", "b", "c", "d"):
+                    error = "Choose the correct answer for each question."
+
+        if error:
+            flash(error, "danger")
+        else:
+            for old in Challenge.query.filter_by(is_active=True).all():
+                old.is_active = False
+            challenge = Challenge(title=title, description=description,
+                                  ends_at=utcnow() + timedelta(hours=hours))
+            db.session.add(challenge)
+            db.session.flush()   # gives the challenge an id
+            for blk in blocks:
+                db.session.add(Question(
+                    challenge_id=challenge.id, text=blk["text"],
+                    option_a=blk["a"], option_b=blk["b"],
+                    option_c=blk["c"], option_d=blk["d"],
+                    correct=blk["correct"]))
+            db.session.commit()
+            flash("Challenge created and live!", "success")
+            return redirect(url_for("admin_home"))
+
+    return render_template("admin_new.html", blocks=blocks,
+                           title=request.form.get("title", ""),
+                           description=request.form.get("description", ""),
+                           hours=request.form.get("hours", "24"))
+
+
+@app.route("/admin/<int:challenge_id>/end", methods=["POST"])
+@admin_required
+def admin_end(challenge_id):
+    challenge = db.get_or_404(Challenge, challenge_id)
+    challenge.is_active = False
+    db.session.commit()
+    flash(f"Ended \"{challenge.title}\".", "success")
+    return redirect(url_for("admin_home"))
 
 if __name__ == "__main__":
     app.run(debug=True)

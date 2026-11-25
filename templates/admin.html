@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Admin · Quest-Beings{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Challenges</h1>
+  <a href="{{ url_for('admin_new') }}" class="btn btn-primary">+ New challenge</a>
+</div>
+<div class="table-responsive">
+  <table class="table align-middle">
+    <thead>
+      <tr><th>Title</th><th>Status</th><th>Ends (UTC)</th><th>Questions</th><th>Players</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for c in challenges %}
+      <tr>
+        <td>{{ c.title }}</td>
+        <td>
+          {% if c.is_active and c.ends_at > now %}
+            <span class="badge text-bg-success">Live</span>
+          {% else %}
+            <span class="badge text-bg-secondary">Ended</span>
+          {% endif %}
+        </td>
+        <td>{{ c.ends_at.strftime('%d %b %Y, %H:%M') }}</td>
+        <td>{{ c.questions|length }}</td>
+        <td>{{ counts[c.id] }}</td>
+        <td>
+          {% if c.is_active %}
+          <form method="post" action="{{ url_for('admin_end', challenge_id=c.id) }}">
+            <button class="btn btn-sm btn-outline-danger">End now</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-secondary">No challenges yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
