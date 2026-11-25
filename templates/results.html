@@ -8,6 +8,7 @@
       <p class="display-4 fw-bold my-3">{{ attempt.score }}</p>
       <p class="text-secondary">points</p>
       <p class="fs-5">Rank <strong>#{{ rank }}</strong> of {{ total_players }}</p>
+      {% if streak > 0 %}<p class="fs-5">🔥 {{ streak }}-day streak</p>{% endif %}
       <p>{{ attempt.correct_count }} / {{ total_questions }} correct</p>
       <a href="{{ url_for('home') }}" class="btn btn-primary">Back to home</a>
     </div>

@@ -20,10 +20,10 @@
   <div class="col-lg-4">
     <div class="card">
       <div class="card-header">🏆 Top players</div>
-      <ul class="list-group list-group-flush">
+      <ul class="list-group list-group-flush" id="leaderboard">
         {% for p in players %}
         <li class="list-group-item d-flex justify-content-between">
-          <span>{{ loop.index }}. {{ p.name }}</span><strong>{{ p.score }}</strong>
+          <span>{{ p.rank }}. {{ p.name }}</span><strong>{{ p.score }}</strong>
         </li>
         {% else %}
         <li class="list-group-item text-secondary">No scores yet</li>
@@ -36,16 +36,44 @@
 
 {% block scripts %}
 <script>
+  // Countdown
   const el = document.getElementById("countdown");
   if (el) {
     let s = parseInt(el.dataset.seconds);
     function tick() {
-        const m = String(Math.floor(s / 60)).padStart(2, "0");
-        const r = String(s % 60).padStart(2, "0");
-        el.textContent = `${m}:${r}`;
-        if (s > 0) s--;
+      const m = String(Math.floor(s / 60)).padStart(2, "0");
+      const r = String(s % 60).padStart(2, "0");
+      el.textContent = `${m}:${r}`;
+      if (s > 0) s--;
     }
+    tick(); setInterval(tick, 1000);
   }
-  tick(); setInterval(tick, 1000);
+
+  // Live leaderboard: ask the server every 3 seconds
+  const board = document.getElementById("leaderboard");
+  async function refreshBoard() {
+    try {
+      const res = await fetch("/api/leaderboard");
+      const players = await res.json();
+      board.replaceChildren();
+      if (players.length === 0) {
+        const li = document.createElement("li");
+        li.className = "list-group-item text-secondary";
+        li.textContent = "No scores yet";
+        board.append(li);
+      }
+      players.forEach(p => {
+        const li = document.createElement("li");
+        li.className = "list-group-item d-flex justify-content-between";
+        const left = document.createElement("span");
+        left.textContent = `${p.rank}. ${p.name}`;
+        const right = document.createElement("strong");
+        right.textContent = p.score;
+        li.append(left, right);
+        board.append(li);
+      });
+    } catch (e) { /* network hiccup: try again next time */ }
+  }
+  setInterval(refreshBoard, 3000);
 </script>
 {% endblock %}
