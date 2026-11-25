@@ -1,7 +1,7 @@
 import os
 import time
 from datetime import datetime, timedelta, timezone
-
+from werkzeug.middleware.proxy_fix import ProxyFix
 from authlib.integrations.flask_client import OAuth
 
 import redis
@@ -19,6 +19,8 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-me")
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///pulsequest.db"
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
