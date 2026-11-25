@@ -190,6 +190,10 @@ def load_quiz():
 
 
 # ---------- Pages ----------
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
 @app.route("/")
 def home():
     challenge = get_active_challenge()
