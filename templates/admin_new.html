@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}New challenge · Quest-Beings{% endblock %}
+
+{% macro qblock(b) %}
+<div class="card p-3 mb-3 qblock">
+  <div class="d-flex justify-content-between mb-2">
+    <strong>Question</strong>
+    <button type="button" class="btn btn-sm btn-outline-danger"
+            onclick="this.closest('.qblock').remove()">Remove</button>
+  </div>
+  <textarea name="q_text" class="form-control mb-2" rows="2" maxlength="300"
+            placeholder="Question text">{{ b.text }}</textarea>
+  <div class="row g-2">
+    {% for key in ['a', 'b', 'c', 'd'] %}
+    <div class="col-md-6">
+      <input name="q_{{ key }}" class="form-control" maxlength="150"
+             placeholder="Option {{ key|upper }}" value="{{ b[key] }}">
+    </div>
+    {% endfor %}
+  </div>
+  <div class="mt-2">
+    <label class="form-label small mb-1">Correct answer</label>
+    <select name="q_correct" class="form-select form-select-sm w-auto">
+      {% for key in ['a', 'b', 'c', 'd'] %}
+      <option value="{{ key }}" {{ 'selected' if b.correct == key }}>{{ key|upper }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<h1 class="h3 mb-3">New challenge</h1>
+<form method="post">
+  <div class="row g-3 mb-4">
+    <div class="col-md-8">
+      <label class="form-label">Title</label>
+      <input name="title" class="form-control" maxlength="100" required value="{{ title }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Duration (hours)</label>
+      <input name="hours" type="number" min="1" max="168" class="form-control" required value="{{ hours }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label">Description</label>
+      <input name="description" class="form-control" maxlength="300" required value="{{ description }}">
+    </div>
+  </div>
+
+  <h2 class="h5">Questions</h2>
+  <div id="questions">
+    {% for b in (blocks or [{}]) %}{{ qblock(b) }}{% endfor %}
+  </div>
+  <button type="button" class="btn btn-outline-light mb-3" id="addQuestion">+ Add question</button>
+  <p class="text-secondary small">Creating a challenge makes it live and ends the current one.</p>
+  <button class="btn btn-primary">Create challenge</button>
+  <a href="{{ url_for('admin_home') }}" class="btn btn-link">Cancel</a>
+</form>
+
+<template id="qTemplate">{{ qblock({}) }}</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById("addQuestion").addEventListener("click", () => {
+    const tpl = document.getElementById("qTemplate");
+    document.getElementById("questions").append(tpl.content.cloneNode(true));
+  });
+</script>
+{% endblock %}
